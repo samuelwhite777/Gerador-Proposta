@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerar Proposta - Kevillen Costa</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="flex flex-col items-center justify-between min-h-screen p-2 sm:p-4 bg-[#0A0A0A] text-gray-100">
+    <div id="root" class="w-full max-w-4xl">
+        <!-- React application will be mounted here -->
+    </div>
+
+    <!-- Footer for "Criado por" -->
+    <footer class="mt-8 mb-4 text-center text-gray-400 text-sm">
+        Criado por <a href="https://github.com/samuel.ps777" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Samuel.ps777</a>
+    </footer>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const formatCurrency = (value) => {
+            if (typeof value !== 'number' || !isFinite(value)) {
+                return 'R$ 0,00';
+            }
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        };
+
+        const parseToNumber = (value) => {
+            const num = parseFloat(value);
+            return isNaN(num) || !isFinite(num) ? 0 : num;
+        };
+
+        const ProposalPage = ({ onBack }) => {
+            // isDarkMode state is removed as page is always dark
+
+            // Property and Payment Info
+            const [initialPropertyValue, setInitialPropertyValue] = useState(500000);
+            const [initialPaymentPercentage, setInitialPaymentPercentage] = useState(10); // Minimum 10%
+            const [constructionMonths, setConstructionMonths] = useState(60);
+            const [annualReinforcementValue, setAnnualReinforcementValue] = useState(20000); // Default to 20000
+            const [numAnnualReinforcementsTotal, setNumAnnualReinforcementsTotal] = useState(Math.floor(60 / 12)); // Default based on constructionMonths
+            const [totalPaymentFlowMonths, setTotalPaymentFlowMonths] = useState(120); // Overall payment duration 120-140
+            const [valueAtKeysInput, setValueAtKeysInput] = useState(parseToNumber(initialPropertyValue) * 0.10); // Default to 10% of property value
+
+            // Calculated Values
+            const [calculatedInitialPayment, setCalculatedInitialPayment] = useState(0);
+            const [calculatedMonthlyInstallmentDuringConstruction, setCalculatedMonthlyInstallmentDuringConstruction] = useState(0);
+            const [calculatedTotalPaidDuringConstruction, setCalculatedTotalPaidDuringConstruction] = useState(0);
+            const [calculatedMonthlyInstallmentValuePostConstruction, setCalculatedMonthlyInstallmentValuePostConstruction] = useState(0); // This is now CALCULATED
+            const [calculatedTotalInstallmentMonthsPostConstruction, setCalculatedTotalInstallmentMonthsPostConstruction] = useState(0); // Derived
+
+            const [message, setMessage] = useState('');
+            const [showMessageBox, setShowMessageBox] = useState(false);
+
+            const showMessage = (msg) => {
+                setMessage(msg);
+                setShowMessageBox(true);
+                setTimeout(() => {
+                    setShowMessageBox(false);
+                    setMessage('');
+                }, 3000);
+            };
+
+            const calculatePaymentFlow = () => {
+                const propValue = parseToNumber(initialPropertyValue);
+                const initialPayPct = parseToNumber(initialPaymentPercentage);
+                const constrMonths = parseToNumber(constructionMonths);
+                const annualReinfValue = parseToNumber(annualReinforcementValue);
+                const numAnnualReinfTotal = parseToNumber(numAnnualReinforcementsTotal);
+                const totalFlowMonths = parseToNumber(totalPaymentFlowMonths);
+                const valAtKeys = parseToNumber(valueAtKeysInput);
+
+                // 1. Entrada (Down Payment)
+                const initialPay = propValue * (initialPayPct / 100);
+                setCalculatedInitialPayment(initialPay);
+
+                // Derived: Meses de Financiamento Pós-Obra
+                const postConstructionMonths = Math.max(0, totalFlowMonths - constrMonths);
+                setCalculatedTotalInstallmentMonthsPostConstruction(postConstructionMonths);
+
+                // Calculate total reinforcements paid during the construction phase
+                const numReinforcementsDuringConstruction = Math.floor(constrMonths / 12);
+                const totalReinforcementsDuringConstructionValue = annualReinfValue * numReinforcementsDuringConstruction;
+
+                // Amount that must be paid during construction (50% target)
+                const targetPaidDuringConstruction = propValue * 0.50;
+
+                // Amount remaining to be covered by monthly installments DURING construction
+                let remainingToCoverByMonthlyInstallmentsDuringConstruction = targetPaidDuringConstruction - initialPay - totalReinforcementsDuringConstructionValue;
+
+                // Calculate monthly installment during construction
+                const monthlyInstallmentDC = (constrMonths > 0 && isFinite(remainingToCoverByMonthlyInstallmentsDuringConstruction))
+                    ? Math.max(0, remainingToCoverByMonthlyInstallmentsDuringConstruction / constrMonths)
+                    : 0;
+                setCalculatedMonthlyInstallmentDuringConstruction(monthlyInstallmentDC);
+
+                // Actual total paid during construction (sum of initial pay, monthly installments, and reinforcements during construction)
+                const actualTotalPaidDuringConstruction = initialPay + (monthlyInstallmentDC * constrMonths) + totalReinforcementsDuringConstructionValue;
+                setCalculatedTotalPaidDuringConstruction(actualTotalPaidDuringConstruction);
+
+
+                // Total value of all annual reinforcements over the full plan
+                const totalAnnualReinforcementsOverallValue = annualReinfValue * numAnnualReinfTotal;
+
+                // Calculate amount remaining to be covered by POST-CONSTRUCTION installments
+                // This is the total property value MINUS:
+                // - initial payment
+                // - all monthly installments during construction
+                // - all annual reinforcements (overall, including those during and after construction)
+                // - the "Valor nas Chaves" payment (which is an input now)
+                const totalPaidExcludingPostInstallments = initialPay + (monthlyInstallmentDC * constrMonths) + totalAnnualReinforcementsOverallValue + valAtKeys;
+
+                const amountForPostInstallments = propValue - totalPaidExcludingPostInstallments;
+
+                // Calculate monthly installment value post-construction
+                const monthlyInstallmentPostC = (postConstructionMonths > 0 && isFinite(amountForPostInstallments))
+                    ? Math.max(0, amountForPostInstallments / postConstructionMonths)
+                    : 0;
+                setCalculatedMonthlyInstallmentValuePostConstruction(monthlyInstallmentPostC);
+            };
+
+            useEffect(() => {
+                calculatePaymentFlow();
+            }, [
+                initialPropertyValue,
+                initialPaymentPercentage,
+                constructionMonths,
+                annualReinforcementValue,
+                numAnnualReinforcementsTotal,
+                totalPaymentFlowMonths,
+                valueAtKeysInput
+            ]);
+
+            // Effect to update numAnnualReinforcementsTotal based on constructionMonths (dynamic default)
+            useEffect(() => {
+                const defaultNumReinforcements = Math.floor(parseToNumber(constructionMonths) / 12);
+                setNumAnnualReinforcementsTotal(Math.min(12, Math.max(1, defaultNumReinforcements)));
+            }, [constructionMonths]);
+
+            // Removed effect to apply dark mode class to body as it's now set directly on body
+
+            const handleSendProposalViaWhatsapp = () => {
+                const propValue = parseToNumber(initialPropertyValue);
+
+                const messageContent = `
+Olá Kevillen, segue abaixo os dados da proposta:
+
+Proposta de Pagamento Imobiliário
+Gerada em: ${new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+
+*--- Resumo do Imóvel ---*
+Valor do Imóvel: ${formatCurrency(propValue)} (100%)
+
+*--- Detalhamento do Fluxo de Pagamento ---*
+Entrada: ${formatCurrency(calculatedInitialPayment)} (${((calculatedInitialPayment / propValue) * 100).toFixed(2)}%)
+Meses de Obra: ${constructionMonths} meses
+Valor Reforço Anual: ${formatCurrency(annualReinforcementValue)}
+Número Total de Reforços Anuais: ${numAnnualReinforcementsTotal}
+Parcelas Mensais Durante a Obra: ${formatCurrency(calculatedMonthlyInstallmentDuringConstruction)}
+Total Pago Durante a Obra (50% do Imóvel): ${formatCurrency(calculatedTotalPaidDuringConstruction)} (${((calculatedTotalPaidDuringConstruction / propValue) * 100).toFixed(2)}%)
+Meses Totais do Fluxo: ${totalPaymentFlowMonths} meses
+Meses de Financiamento Pós-Obra: ${calculatedTotalInstallmentMonthsPostConstruction} meses
+Valor nas Chaves: ${formatCurrency(parseToNumber(valueAtKeysInput))} (${((parseToNumber(valueAtKeysInput) / propValue) * 100).toFixed(2)}%)
+Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallmentValuePostConstruction)}
+                `.trim();
+
+                const whatsappMessage = encodeURIComponent(messageContent);
+                const whatsappUrl = `https://wa.me/5547997082022?text=${whatsappMessage}`;
+                window.open(whatsappUrl, '_blank');
+                showMessage("Proposta enviada para o WhatsApp!");
+            };
+
+            const InputField = ({ label, value, type = "text", onChange, min, max, step, placeholder, isCurrency = false, readOnly = false }) => {
+                const inputClasses = `p-2 sm:p-3 border rounded-md shadow-sm w-full bg-gray-800 text-gray-100 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out`;
+                const labelClasses = `text-sm font-medium text-gray-300 mb-1`;
+                const displaySpanClasses = `text-xs sm:text-sm text-gray-400 mt-1`;
+
+                const handleInputChange = (e) => {
+                    let newValue = e.target.value;
+                    if (type === 'range' || isCurrency || type === 'number') {
+                        onChange(parseToNumber(newValue));
+                    } else {
+                        onChange(newValue); // For text type, pass as string
+                    }
+                };
+                
+                let htmlInputType = type;
+                if (isCurrency) {
+                    htmlInputType = 'number';
+                }
+
+
+                return (
+                    <div className="flex flex-col">
+                        <label htmlFor={label.replace(/\s/g, '_').toLowerCase()} className={labelClasses}>{label}:</label>
+                        {type === 'range' ? (
+                            <>
+                                <input
+                                    id={label.replace(/\s/g, '_').toLowerCase()}
+                                    type="range"
+                                    min={min}
+                                    max={max}
+                                    step={step}
+                                    value={value}
+                                    onChange={handleInputChange} // Use the new handler
+                                    className={inputClasses}
+                                />
+                                <span className={displaySpanClasses}>{isCurrency ? formatCurrency(value) : value}</span>
+                            </>
+                        ) : (
+                            <>
+                                <input
+                                    id={label.replace(/\s/g, '_').toLowerCase()}
+                                    type={htmlInputType} // Use the determined HTML input type
+                                    value={value}
+                                    onChange={handleInputChange} // Use the new handler
+                                    placeholder={placeholder}
+                                    className={inputClasses}
+                                    readOnly={readOnly}
+                                />
+                                {isCurrency && <span className={displaySpanClasses}>{formatCurrency(value)}</span>}
+                            </>
+                        )}
+                    </div>
+                );
+            };
+
+            const InfoDisplayCard = ({ title, value, titleColor, valueColor, bgColor, borderColor }) => (
+                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 rounded-md border ${bgColor} ${borderColor}`}>
+                    <span className={`font-medium text-sm sm:text-base ${titleColor} mb-1 sm:mb-0`}>{title}:</span>
+                    <span className={`text-base sm:text-lg font-bold ${valueColor}`}>{value}</span>
+                </div>
+            );
+
+
+            return (
+                <div class="max-w-4xl mx-auto bg-gray-900 shadow-lg border border-gray-700 rounded-xl p-4 sm:p-8 space-y-4 sm:space-y-8 text-gray-100">
+                    {/* Header */}
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <button
+                            onClick={onBack}
+                            class="p-2 sm:p-3 rounded-full bg-gray-700 text-gray-200 hover:bg-gray-600 transition duration-150 ease-in-out transform hover:scale-110"
+                            aria-label="Voltar"
+                        >
+                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M15.41 16.59L10.83 12L15.41 7.41L14 6L8 12L14 18L15.41 16.59Z"/>
+                            </svg>
+                        </button>
+                        <h1 class="text-xl sm:text-3xl font-bold text-blue-400 text-center flex-grow mx-2">Gerar Proposta</h1>
+                    </div>
+
+                    {/* Proposal Content */}
+                    <div class="space-y-4 sm:space-y-8 p-4 bg-gray-900 rounded-xl">
+                        {/* Payment Flow Details */}
+                        <h2 class="text-xl sm:text-2xl font-semibold text-blue-400 text-center mt-8 mb-2 sm:mb-4">Detalhes do Fluxo de Pagamento</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                            <InputField label="Valor do Imóvel (R$)" type="number" value={initialPropertyValue} onChange={setInitialPropertyValue} isCurrency />
+                            <InputField label="Entrada (%)" type="range" value={initialPaymentPercentage} onChange={setInitialPaymentPercentage} min="10" max="30" step="1" />
+                            <InfoDisplayCard
+                                title="Valor da Entrada"
+                                value={formatCurrency(calculatedInitialPayment)}
+                                titleColor="text-gray-300"
+                                valueColor="text-blue-200"
+                                bgColor="bg-gray-800"
+                                borderColor="border-gray-700"
+                            />
+                            <InputField label="Meses de Obra" type="range" value={constructionMonths} onChange={setConstructionMonths} min="1" max="100" step="1" />
+
+                            <InputField label="Valor Reforço Anual (R$)" type="range" value={annualReinforcementValue} onChange={setAnnualReinforcementValue} min="10000" max="30000" step="1000" isCurrency />
+                            <InputField label="Número Total de Reforços Anuais" type="range" value={numAnnualReinforcementsTotal} onChange={setNumAnnualReinforcementsTotal} min="1" max="12" step="1" />
+
+                            <InfoDisplayCard
+                                title="Parcelas Mensais Durante a Obra"
+                                value={formatCurrency(calculatedMonthlyInstallmentDuringConstruction)}
+                                titleColor="text-gray-300"
+                                valueColor="text-blue-200"
+                                bgColor="bg-gray-800"
+                                borderColor="border-gray-700"
+                            />
+                            <InfoDisplayCard
+                                title="Total Pago Durante a Obra (50% do Imóvel)"
+                                value={formatCurrency(calculatedTotalPaidDuringConstruction)}
+                                titleColor="text-gray-300"
+                                valueColor="text-blue-200"
+                                bgColor="bg-gray-800"
+                                borderColor="border-gray-700"
+                            />
+                            <InputField label="Meses Totais do Fluxo" type="range" value={totalPaymentFlowMonths} onChange={setTotalPaymentFlowMonths} min="120" max="140" step="1" />
+                            <InfoDisplayCard
+                                title="Meses de Financiamento Pós-Obra"
+                                value={`${calculatedTotalInstallmentMonthsPostConstruction} meses`}
+                                titleColor="text-gray-300"
+                                valueColor="text-blue-200"
+                                bgColor="bg-gray-800"
+                                borderColor="border-gray-700"
+                            />
+                            <InputField label="Valor nas Chaves (R$)" type="range" value={valueAtKeysInput} onChange={setValueAtKeysInput} min="0" max={initialPropertyValue} step="10000" isCurrency />
+                             <InfoDisplayCard
+                                title="Valor da Parcela Mensal Pós-Obra"
+                                value={formatCurrency(calculatedMonthlyInstallmentValuePostConstruction)}
+                                titleColor="text-gray-300"
+                                valueColor="text-blue-200"
+                                bgColor="bg-gray-800"
+                                borderColor="border-gray-700"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Action Buttons for Proposal Page */}
+                    <div class="flex justify-center gap-4 mt-8">
+                        <button
+                            onClick={handleSendProposalViaWhatsapp}
+                            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-lg text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition duration-150 ease-in-out transform hover:scale-105"
+                        >
+                            <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12.000 2.000C6.477 2.000 2.000 6.477 2.000 12.000C2.000 17.523 6.477 22.000 12.000 22.000C17.523 22.000 22.000 17.523 22.000 12.000C22.000 6.477 17.523 2.000 12.000 2.000ZM15.485 16.035C15.285 16.205 15.065 16.325 14.825 16.405C14.585 16.485 14.335 16.515 14.075 16.515C13.815 16.515 13.565 16.485 13.325 16.405C13.085 16.325 12.865 16.205 12.665 16.035C12.465 15.865 12.285 15.685 12.125 15.495C11.965 15.305 11.835 15.115 11.735 14.915C11.635 14.715 11.565 14.505 11.525 14.285C11.485 14.065 11.455 13.835 11.455 13.605C11.455 13.375 11.485 13.145 11.525 12.925C11.565 12.705 11.635 12.495 11.735 12.295C11.835 12.095 11.965 11.905 12.125 11.715C12.285 11.525 12.465 11.345 12.665 11.175C12.865 11.005 13.085 10.885 13.325 10.805C13.565 10.725 13.815 10.695 14.075 10.695C14.335 10.695 14.585 10.725 14.825 10.805C15.065 10.885 15.285 11.005 15.485 11.175C15.685 11.345 15.865 11.525 16.035 11.715C16.205 11.905 16.325 12.095 16.405 12.295C16.485 12.495 16.515 12.705 16.515 12.925C16.515 13.145 16.485 13.375 16.405 13.605C16.325 13.835 16.205 14.065 16.035 14.285C15.865 14.505 15.685 14.715 15.485 14.915C15.285 15.115 15.065 15.305 14.825 15.495C14.585 15.685 14.335 15.865 14.075 16.035Z" />
+                            </svg>
+                            Enviar Proposta via WhatsApp
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ProposalPage onBack={() => window.location.href = 'index.html'} />, document.getElementById('root'));
+    </script>
+</body>
+</html>
