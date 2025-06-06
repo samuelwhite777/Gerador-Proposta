@@ -3,18 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerar Proposta - Kevillen Costa</title>
-    <!-- Tailwind CSS CDN for styling -->
+    <title>Simulador de Valorização e Rentabilidade Imobiliária por Kevillen Costa</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="flex flex-col items-center justify-between min-h-screen p-2 sm:p-4 bg-[#0A0A0A] text-gray-100">
     <div id="root" class="w-full max-w-4xl">
-        <!-- React application will be mounted here -->
     </div>
 
-    <!-- Footer for "Criado por" -->
     <footer class="mt-8 mb-4 text-center text-gray-400 text-sm">
         Criado por <a href="https://github.com/samuel.ps777" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Samuel.ps777</a>
     </footer>
@@ -38,24 +34,73 @@
             return isNaN(num) || !isFinite(num) ? 0 : num;
         };
 
-        const ProposalPage = ({ onBack }) => {
-            // isDarkMode state is removed as page is always dark
+        const FadeInSection = ({ children, delay = 0 }) => {
+            const [isVisible, setVisible] = useState(false);
+            const domRef = useRef();
 
-            // Property and Payment Info
+            useEffect(() => {
+                const observer = new IntersectionObserver(entries => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            setVisible(true);
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.1 });
+
+                const currentRef = domRef.current;
+                if (currentRef) {
+                    observer.observe(currentRef);
+                }
+
+                return () => {
+                    if (currentRef) {
+                        observer.unobserve(currentRef);
+                    }
+                };
+            }, []);
+
+            return (
+                <div
+                    className={`transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+                    style={{ transitionDelay: `${delay}ms` }}
+                    ref={domRef}
+                >
+                    {children}
+                </div>
+            );
+        };
+
+        const App = () => {
             const [initialPropertyValue, setInitialPropertyValue] = useState(500000);
-            const [initialPaymentPercentage, setInitialPaymentPercentage] = useState(10); // Minimum 10%
             const [constructionMonths, setConstructionMonths] = useState(60);
-            const [annualReinforcementValue, setAnnualReinforcementValue] = useState(20000); // Default to 20000
-            const [numAnnualReinforcementsTotal, setNumAnnualReinforcementsTotal] = useState(Math.floor(60 / 12)); // Default based on constructionMonths
-            const [totalPaymentFlowMonths, setTotalPaymentFlowMonths] = useState(120); // Overall payment duration 120-140
-            const [valueAtKeysInput, setValueAtKeysInput] = useState(parseToNumber(initialPropertyValue) * 0.10); // Default to 10% of property value
+            const [totalSimulationMonths, setTotalSimulationMonths] = useState(constructionMonths + 48);
+            const [monthlyAppreciationConstruction, setMonthlyAppreciationConstruction] = useState(2.0);
+            const [monthlyAppreciationPostConstruction, setMonthlyAppreciationPostConstruction] = useState(0.5);
+            const [rentalIncomePercentage, setRentalIncomePercentage] = useState(1.0);
+            const [initialCostsPercentage, setInitialCostsPercentage] = useState(10.0);
 
-            // Calculated Values
-            const [calculatedInitialPayment, setCalculatedInitialPayment] = useState(0);
-            const [calculatedMonthlyInstallmentDuringConstruction, setCalculatedMonthlyInstallmentDuringConstruction] = useState(0);
-            const [calculatedTotalPaidDuringConstruction, setCalculatedTotalPaidDuringConstruction] = useState(0);
-            const [calculatedMonthlyInstallmentValuePostConstruction, setCalculatedMonthlyInstallmentValuePostConstruction] = useState(0); // This is now CALCULATED
-            const [calculatedTotalInstallmentMonthsPostConstruction, setCalculatedTotalInstallmentMonthsPostConstruction] = useState(0); // Derived
+            const [totalPaidDuringConstruction, setTotalPaidDuringConstruction] = useState(0);
+            const [finalPropertyValue, setFinalPropertyValue] = useState(0);
+            const [totalInvestment, setTotalInvestment] = useState(0);
+            const [totalRentalIncome, setTotalRentalIncome] = useState(0);
+            const [netProfit, setNetProfit] = useState(0);
+            const [percentageAppreciation, setPercentageAppreciation] = useState(0);
+
+            const [savingsReturn, setSavingsReturn] = useState(0);
+            const [cdiReturn, setCdiReturn] = useState(0);
+            const [ipcaPlusReturn, setIpcaPlusReturn] = useState(0);
+            const [stockMarketReturn, setStockMarketReturn] = useState(0);
+
+            const [propVsSavingsPct, setPropVsSavingsPct] = useState(0);
+            const [propVsCdiPct, setPropVsCdiPct] = useState(0);
+            const [propVsIpcaPlusPct, setPropVsIpcaPlusPct] = useState(0);
+            const [propVsStockMarketPct, setPropVsStockMarketPct] = useState(0);
+
+            const [savingsReturnPct, setSavingsReturnPct] = useState(0);
+            const [cdiReturnPct, setCdiReturnPct] = useState(0);
+            const [ipcaPlusReturnPct, setIpcaPlusReturnPct] = useState(0);
+            const [stockMarketReturnPct, setStockMarketReturnPct] = useState(0);
 
             const [message, setMessage] = useState('');
             const [showMessageBox, setShowMessageBox] = useState(false);
@@ -69,113 +114,150 @@
                 }, 3000);
             };
 
-            const calculatePaymentFlow = () => {
+            const runSimulation = () => {
                 const propValue = parseToNumber(initialPropertyValue);
-                const initialPayPct = parseToNumber(initialPaymentPercentage);
                 const constrMonths = parseToNumber(constructionMonths);
-                const annualReinfValue = parseToNumber(annualReinforcementValue);
-                const numAnnualReinfTotal = parseToNumber(numAnnualReinforcementsTotal);
-                const totalFlowMonths = parseToNumber(totalPaymentFlowMonths);
-                const valAtKeys = parseToNumber(valueAtKeysInput);
+                const totalSimMonths = parseToNumber(totalSimulationMonths);
+                const monthlyApprConstr = parseToNumber(monthlyAppreciationConstruction);
+                const monthlyApprPostConstr = parseToNumber(monthlyAppreciationPostConstruction);
+                const rentalIncPct = parseToNumber(rentalIncomePercentage);
+                const initialCstPct = parseToNumber(initialCostsPercentage);
 
-                // 1. Entrada (Down Payment)
-                const initialPay = propValue * (initialPayPct / 100);
-                setCalculatedInitialPayment(initialPay);
+                const costs = propValue * (initialCstPct / 100);
+                const maxConstructionPayment = propValue * 0.50;
+                const monthlyPaymentDuringConstruction = constrMonths > 0 ? maxConstructionPayment / constrMonths : 0;
 
-                // Derived: Meses de Financiamento Pós-Obra
-                const postConstructionMonths = Math.max(0, totalFlowMonths - constrMonths);
-                setCalculatedTotalInstallmentMonthsPostConstruction(postConstructionMonths);
+                let currentPropertyValueSim = propValue;
+                let paymentsAccumulated = costs;
+                let rentalIncomeAccumulated = 0;
+                let paidDuringConstructionSim = 0;
 
-                // Calculate total reinforcements paid during the construction phase
-                const numReinforcementsDuringConstruction = Math.floor(constrMonths / 12);
-                const totalReinforcementsDuringConstructionValue = annualReinfValue * numReinforcementsDuringConstruction;
+                for (let month = 1; month <= totalSimMonths; month++) {
+                    if (month <= constrMonths) {
+                        currentPropertyValueSim *= (1 + (monthlyApprConstr / 100));
+                        if (month <= constrMonths) {
+                            paymentsAccumulated += monthlyPaymentDuringConstruction;
+                            paidDuringConstructionSim += monthlyPaymentDuringConstruction;
+                        }
+                    } else {
+                        currentPropertyValueSim *= (1 + (monthlyApprPostConstr / 100));
+                        const monthlyRentalIncome = currentPropertyValueSim * (rentalIncPct / 100);
+                        rentalIncomeAccumulated += monthlyRentalIncome;
+                    }
+                }
 
-                // Amount that must be paid during construction (50% target)
-                const targetPaidDuringConstruction = propValue * 0.50;
+                setTotalPaidDuringConstruction(paidDuringConstructionSim);
+                setFinalPropertyValue(currentPropertyValueSim);
+                setTotalInvestment(paymentsAccumulated);
+                setTotalRentalIncome(rentalIncomeAccumulated);
 
-                // Amount remaining to be covered by monthly installments DURING construction
-                let remainingToCoverByMonthlyInstallmentsDuringConstruction = targetPaidDuringConstruction - initialPay - totalReinforcementsDuringConstructionValue;
+                const profit = currentPropertyValueSim + rentalIncomeAccumulated - paymentsAccumulated;
+                setNetProfit(profit);
 
-                // Calculate monthly installment during construction
-                const monthlyInstallmentDC = (constrMonths > 0 && isFinite(remainingToCoverByMonthlyInstallmentsDuringConstruction))
-                    ? Math.max(0, remainingToCoverByMonthlyInstallmentsDuringConstruction / constrMonths)
-                    : 0;
-                setCalculatedMonthlyInstallmentDuringConstruction(monthlyInstallmentDC);
+                if (paymentsAccumulated > 0) {
+                    setPercentageAppreciation((profit / paymentsAccumulated) * 100);
+                } else {
+                    setPercentageAppreciation(0);
+                }
 
-                // Actual total paid during construction (sum of initial pay, monthly installments, and reinforcements during construction)
-                const actualTotalPaidDuringConstruction = initialPay + (monthlyInstallmentDC * constrMonths) + totalReinforcementsDuringConstructionValue;
-                setCalculatedTotalPaidDuringConstruction(actualTotalPaidDuringConstruction);
+                const initialComparisonCapital = paymentsAccumulated;
 
+                const monthlySavingsRate = 0.5 / 100;
+                const monthlyCdiRate = 1.0 / 100;
+                const monthlyIpcaPlusRate = 0.6 / 100;
+                const monthlyStockMarketRate = 1.2 / 100;
 
-                // Total value of all annual reinforcements over the full plan
-                const totalAnnualReinforcementsOverallValue = annualReinfValue * numAnnualReinfTotal;
+                let currentSavingsValue = initialComparisonCapital;
+                let currentCdiValue = initialComparisonCapital;
+                let currentIpcaPlusValue = initialComparisonCapital;
+                let currentStockMarketValue = initialComparisonCapital;
 
-                // Calculate amount remaining to be covered by POST-CONSTRUCTION installments
-                // This is the total property value MINUS:
-                // - initial payment
-                // - all monthly installments during construction
-                // - all annual reinforcements (overall, including those during and after construction)
-                // - the "Valor nas Chaves" payment (which is an input now)
-                const totalPaidExcludingPostInstallments = initialPay + (monthlyInstallmentDC * constrMonths) + totalAnnualReinforcementsOverallValue + valAtKeys;
+                for (let month = 1; month <= totalSimMonths; month++) {
+                    currentSavingsValue *= (1 + monthlySavingsRate);
+                    currentCdiValue *= (1 + monthlyCdiRate);
+                    currentIpcaPlusValue *= (1 + monthlyIpcaPlusRate);
+                    currentStockMarketValue *= (1 + monthlyStockMarketRate);
+                }
 
-                const amountForPostInstallments = propValue - totalPaidExcludingPostInstallments;
+                setSavingsReturn(currentSavingsValue - initialComparisonCapital);
+                setCdiReturn(currentCdiValue - initialComparisonCapital);
+                setIpcaPlusReturn(currentIpcaPlusValue - initialComparisonCapital);
+                setStockMarketReturn(currentStockMarketValue - initialComparisonCapital);
 
-                // Calculate monthly installment value post-construction
-                const monthlyInstallmentPostC = (postConstructionMonths > 0 && isFinite(amountForPostInstallments))
-                    ? Math.max(0, amountForPostInstallments / postConstructionMonths)
-                    : 0;
-                setCalculatedMonthlyInstallmentValuePostConstruction(monthlyInstallmentPostC);
+                setSavingsReturnPct(initialComparisonCapital > 0 ? ((currentSavingsValue - initialComparisonCapital) / initialComparisonCapital) * 100 : 0);
+                setCdiReturnPct(initialComparisonCapital > 0 ? ((currentCdiValue - initialComparisonCapital) / initialComparisonCapital) * 100 : 0);
+                setIpcaPlusReturnPct(initialComparisonCapital > 0 ? ((currentIpcaPlusValue - initialComparisonCapital) / initialComparisonCapital) * 100 : 0);
+                setStockMarketReturnPct(initialComparisonCapital > 0 ? ((currentStockMarketValue - initialComparisonCapital) / initialComparisonCapital) * 100 : 0);
+
+                const totalPropertyReturn = initialComparisonCapital + profit;
+                setPropVsSavingsPct(currentSavingsValue > 0 ? ((totalPropertyReturn - currentSavingsValue) / currentSavingsValue) * 100 : 0);
+                setPropVsCdiPct(currentCdiValue > 0 ? ((totalPropertyReturn - currentCdiValue) / currentCdiValue) * 100 : 0);
+                setPropVsIpcaPlusPct(currentIpcaPlusValue > 0 ? ((totalPropertyReturn - currentIpcaPlusValue) / currentIpcaPlusValue) * 100 : 0);
+                setPropVsStockMarketPct(currentStockMarketValue > 0 ? ((totalPropertyReturn - currentStockMarketValue) / currentStockMarketValue) * 100 : 0);
             };
 
             useEffect(() => {
-                calculatePaymentFlow();
+                runSimulation();
             }, [
-                initialPropertyValue,
-                initialPaymentPercentage,
-                constructionMonths,
-                annualReinforcementValue,
-                numAnnualReinforcementsTotal,
-                totalPaymentFlowMonths,
-                valueAtKeysInput
+                initialPropertyValue, constructionMonths, totalSimulationMonths,
+                monthlyAppreciationConstruction, monthlyAppreciationPostConstruction,
+                rentalIncomePercentage, initialCostsPercentage
             ]);
 
-            // Effect to update numAnnualReinforcementsTotal based on constructionMonths (dynamic default)
             useEffect(() => {
-                const defaultNumReinforcements = Math.floor(parseToNumber(constructionMonths) / 12);
-                setNumAnnualReinforcementsTotal(Math.min(12, Math.max(1, defaultNumReinforcements)));
+                const minTotalMonths = constructionMonths + 1;
+                const maxTotalMonths = constructionMonths + 48;
+
+                setTotalSimulationMonths(prevTotal => {
+                    if (prevTotal < minTotalMonths) { return minTotalMonths; }
+                    if (prevTotal > maxTotalMonths) { return maxTotalMonths; }
+                    return prevTotal;
+                });
             }, [constructionMonths]);
 
-            // Removed effect to apply dark mode class to body as it's now set directly on body
-
-            const handleSendProposalViaWhatsapp = () => {
+            const handleSendSimulationViaWhatsapp = () => {
                 const propValue = parseToNumber(initialPropertyValue);
-
                 const messageContent = `
-Olá Kevillen, segue abaixo os dados da proposta:
+Olá Kevillen, segue abaixo os dados da simulação para apoio na negociação com o cliente:
 
-Proposta de Pagamento Imobiliário
+*--- Simulação de Investimento Imobiliário ---*
 Gerada em: ${new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
 
-*--- Resumo do Imóvel ---*
-Valor do Imóvel: ${formatCurrency(propValue)} (100%)
+*Parâmetros da Simulação:*
+Valor Inicial do Imóvel: ${formatCurrency(propValue)}
+Meses de Construção: ${constructionMonths}
+Meses Totais da Simulação: ${totalSimulationMonths}
+Apreciação Mensal (Construção): ${monthlyAppreciationConstruction.toFixed(1)}%
+Apreciação Mensal (Pós-Construção): ${monthlyAppreciationPostConstruction.toFixed(1)}%
+Renda de Aluguel Mensal: ${rentalIncomePercentage.toFixed(1)}%
+Custos Iniciais: ${initialCostsPercentage.toFixed(1)}%
 
-*--- Detalhamento do Fluxo de Pagamento ---*
-Entrada: ${formatCurrency(calculatedInitialPayment)} (${((calculatedInitialPayment / propValue) * 100).toFixed(2)}%)
-Meses de Obra: ${constructionMonths} meses
-Valor Reforço Anual: ${formatCurrency(annualReinforcementValue)}
-Número Total de Reforços Anuais: ${numAnnualReinforcementsTotal}
-Parcelas Mensais Durante a Obra: ${formatCurrency(calculatedMonthlyInstallmentDuringConstruction)}
-Total Pago Durante a Obra (50% do Imóvel): ${formatCurrency(calculatedTotalPaidDuringConstruction)} (${((calculatedTotalPaidDuringConstruction / propValue) * 100).toFixed(2)}%)
-Meses Totais do Fluxo: ${totalPaymentFlowMonths} meses
-Meses de Financiamento Pós-Obra: ${calculatedTotalInstallmentMonthsPostConstruction} meses
-Valor nas Chaves: ${formatCurrency(parseToNumber(valueAtKeysInput))} (${((parseToNumber(valueAtKeysInput) / propValue) * 100).toFixed(2)}%)
-Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallmentValuePostConstruction)}
+*Resultados da Simulação:*
+Total Pago Durante a Construção: ${formatCurrency(totalPaidDuringConstruction)}
+Valor Final do Imóvel: ${formatCurrency(finalPropertyValue)}
+Investimento Total (Saída de Caixa): ${formatCurrency(totalInvestment)}
+Renda Total de Aluguel: ${formatCurrency(totalRentalIncome)}
+Lucro Líquido: ${formatCurrency(netProfit)}
+Valorização do Investimento: ${percentageAppreciation.toFixed(2)}%
+
+*Comparativo com Outros Investimentos (base: Investimento Total - ${formatCurrency(totalInvestment)}):*
+Retorno Poupança: ${savingsReturnPct.toFixed(2)}%
+Retorno CDI: ${cdiReturnPct.toFixed(2)}%
+Retorno IPCA+: ${ipcaPlusReturnPct.toFixed(2)}%
+Retorno Bolsa de Valores: ${stockMarketReturnPct.toFixed(2)}%
+
+Imóvel vs Poupança: ${propVsSavingsPct.toFixed(2)}% ${propVsSavingsPct >= 0 ? '(A mais)' : '(A menos)'}
+Imóvel vs CDI: ${propVsCdiPct.toFixed(2)}% ${propVsCdiPct >= 0 ? '(A mais)' : '(A menos)'}
+Imóvel vs IPCA+: ${propVsIpcaPlusPct.toFixed(2)}% ${propVsIpcaPlusPct >= 0 ? '(A mais)' : '(A menos)'}
+Imóvel vs Bolsa: ${propVsStockMarketPct.toFixed(2)}% ${propVsStockMarketPct >= 0 ? '(A mais)' : '(A menos)'}
+
+Pode me ajudar a negociar com o cliente?
                 `.trim();
 
                 const whatsappMessage = encodeURIComponent(messageContent);
                 const whatsappUrl = `https://wa.me/5547997082022?text=${whatsappMessage}`;
                 window.open(whatsappUrl, '_blank');
-                showMessage("Proposta enviada para o WhatsApp!");
+                showMessage("Simulação enviada para o WhatsApp!");
             };
 
             const InputField = ({ label, value, type = "text", onChange, min, max, step, placeholder, isCurrency = false, readOnly = false }) => {
@@ -188,15 +270,14 @@ Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallment
                     if (type === 'range' || isCurrency || type === 'number') {
                         onChange(parseToNumber(newValue));
                     } else {
-                        onChange(newValue); // For text type, pass as string
+                        onChange(newValue);
                     }
                 };
-                
+
                 let htmlInputType = type;
                 if (isCurrency) {
                     htmlInputType = 'number';
                 }
-
 
                 return (
                     <div className="flex flex-col">
@@ -210,7 +291,7 @@ Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallment
                                     max={max}
                                     step={step}
                                     value={value}
-                                    onChange={handleInputChange} // Use the new handler
+                                    onChange={handleInputChange}
                                     className={inputClasses}
                                 />
                                 <span className={displaySpanClasses}>{isCurrency ? formatCurrency(value) : value}</span>
@@ -219,9 +300,9 @@ Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallment
                             <>
                                 <input
                                     id={label.replace(/\s/g, '_').toLowerCase()}
-                                    type={htmlInputType} // Use the determined HTML input type
+                                    type={htmlInputType}
                                     value={value}
-                                    onChange={handleInputChange} // Use the new handler
+                                    onChange={handleInputChange}
                                     placeholder={placeholder}
                                     className={inputClasses}
                                     readOnly={readOnly}
@@ -233,104 +314,355 @@ Valor da Parcela Mensal Pós-Obra: ${formatCurrency(calculatedMonthlyInstallment
                 );
             };
 
-            const InfoDisplayCard = ({ title, value, titleColor, valueColor, bgColor, borderColor }) => (
-                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 rounded-md border ${bgColor} ${borderColor}`}>
-                    <span className={`font-medium text-sm sm:text-base ${titleColor} mb-1 sm:mb-0`}>{title}:</span>
+            const InfoCard = ({ title, value, titleColor, valueColor, bgColor, borderColor }) => (
+                <div className={`flex justify-between items-center p-3 rounded-md border ${bgColor} ${borderColor}`}>
+                    <span className={`font-medium text-sm sm:text-base ${titleColor}`}>{title}:</span>
                     <span className={`text-base sm:text-lg font-bold ${valueColor}`}>{value}</span>
                 </div>
             );
 
+            const FloatingActionButton = ({ onClick, href, iconPath, text, bgColor, hoverBgColor, iconColor, ariaLabel }) => {
+                const commonClasses = `inline-flex items-center justify-center px-4 py-3 rounded-md shadow-lg transition duration-150 ease-in-out transform hover:scale-105 text-base font-semibold
+                                        ${bgColor} hover:${hoverBgColor} ${iconColor} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-opacity-75`;
+
+                const icon = (
+                    <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d={iconPath} fillRule="evenodd" clipRule="evenodd" />
+                    </svg>
+                );
+
+                if (href) {
+                    return (
+                        <a href={href} target="_blank" rel="noopener noreferrer" className={commonClasses} aria-label={ariaLabel}>
+                            {icon}{text}
+                        </a>
+                    );
+                } else {
+                    return (
+                        <button onClick={onClick} className={commonClasses} aria-label={ariaLabel}>
+                            {icon}{text}
+                        </button>
+                    );
+                }
+            };
+
 
             return (
-                <div class="max-w-4xl mx-auto bg-gray-900 shadow-lg border border-gray-700 rounded-xl p-4 sm:p-8 space-y-4 sm:space-y-8 text-gray-100">
-                    {/* Header */}
-                    <div class="flex justify-between items-center mb-4 sm:mb-6">
-                        <button
-                            onClick={onBack}
-                            class="p-2 sm:p-3 rounded-full bg-gray-700 text-gray-200 hover:bg-gray-600 transition duration-150 ease-in-out transform hover:scale-110"
-                            aria-label="Voltar"
-                        >
-                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M15.41 16.59L10.83 12L15.41 7.41L14 6L8 12L14 18L15.41 16.59Z"/>
-                            </svg>
-                        </button>
-                        <h1 class="text-xl sm:text-3xl font-bold text-blue-400 text-center flex-grow mx-2">Gerar Proposta</h1>
+                <div class="max-w-4xl mx-auto bg-gray-900 shadow-lg border border-gray-700 rounded-xl p-4 space-y-4 sm:space-y-8 text-gray-100">
+                    {/* Top Section: Title */}
+                    <div class="flex justify-center items-center mb-4 sm:mb-6">
+                        <h1 class="text-xl sm:text-3xl font-bold text-blue-400 text-center flex-grow mx-2">Simulador de Valorização e Rentabilidade Imobiliária por Kevillen Costa</h1>
                     </div>
 
-                    {/* Proposal Content */}
+                    {/* Content to be captured as PDF */}
                     <div class="space-y-4 sm:space-y-8 p-4 bg-gray-900 rounded-xl">
-                        {/* Payment Flow Details */}
-                        <h2 class="text-xl sm:text-2xl font-semibold text-blue-400 text-center mt-8 mb-2 sm:mb-4">Detalhes do Fluxo de Pagamento</h2>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                            <InputField label="Valor do Imóvel (R$)" type="number" value={initialPropertyValue} onChange={setInitialPropertyValue} isCurrency />
-                            <InputField label="Entrada (%)" type="range" value={initialPaymentPercentage} onChange={setInitialPaymentPercentage} min="10" max="30" step="1" />
-                            <InfoDisplayCard
-                                title="Valor da Entrada"
-                                value={formatCurrency(calculatedInitialPayment)}
-                                titleColor="text-gray-300"
-                                valueColor="text-blue-200"
-                                bgColor="bg-gray-800"
-                                borderColor="border-gray-700"
-                            />
-                            <InputField label="Meses de Obra" type="range" value={constructionMonths} onChange={setConstructionMonths} min="1" max="100" step="1" />
+                        {/* Input Parameters Section */}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-8">
+                            {/* Initial Property Value */}
+                            <div class="flex flex-col">
+                                <label htmlFor="initialPropertyValue" class="text-sm font-medium text-gray-300 mb-1">
+                                    Valor Inicial do Imóvel (R$):
+                                </label>
+                                <input
+                                    id="initialPropertyValue"
+                                    type="number"
+                                    value={initialPropertyValue}
+                                    onChange={(e) => setInitialPropertyValue(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 text-gray-100 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                                <span class="text-xs sm:text-sm text-gray-400 mt-1">{formatCurrency(initialPropertyValue)}</span>
+                            </div>
+                            {/* Construction Months */}
+                            <div class="flex flex-col">
+                                <label htmlFor="constructionMonths" class="text-sm font-medium text-gray-300 mb-1">
+                                    Meses de Construção: <span class="font-semibold text-blue-300">{constructionMonths}</span>
+                                </label>
+                                <input
+                                    id="constructionMonths"
+                                    type="range"
+                                    min="1"
+                                    max="100"
+                                    step="1"
+                                    value={constructionMonths}
+                                    onChange={(e) => setConstructionMonths(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                            {/* Total Simulation Months */}
+                            <div class="flex flex-col">
+                                <label htmlFor="totalSimulationMonths" class="text-sm font-medium text-gray-300 mb-1">
+                                    Meses Totais da Simulação: <span class="font-semibold text-blue-300">{totalSimulationMonths}</span>
+                                </label>
+                                <input
+                                    id="totalSimulationMonths"
+                                    type="range"
+                                    min={constructionMonths + 1}
+                                    max={constructionMonths + 48}
+                                    step="1"
+                                    value={totalSimulationMonths}
+                                    onChange={(e) => setTotalSimulationMonths(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                            {/* Monthly Appreciation During Construction */}
+                            <div class="flex flex-col">
+                                <label htmlFor="monthlyAppreciationConstruction" class="text-sm font-medium text-gray-300 mb-1">
+                                    Apreciação Mensal (Construção %): <span class="font-semibold text-blue-300">{monthlyAppreciationConstruction.toFixed(1)}%</span>
+                                </label>
+                                <input
+                                    id="monthlyAppreciationConstruction"
+                                    type="range"
+                                    min="0"
+                                    max="5"
+                                    step="0.1"
+                                    value={monthlyAppreciationConstruction}
+                                    onChange={(e) => setMonthlyAppreciationConstruction(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                            {/* Monthly Appreciation Post Construction */}
+                            <div class="flex flex-col">
+                                <label htmlFor="monthlyAppreciationPostConstruction" class="text-sm font-medium text-gray-300 mb-1">
+                                    Apreciação Mensal (Pós-Construção %): <span class="font-semibold text-blue-300">{monthlyAppreciationPostConstruction.toFixed(1)}%</span>
+                                </label>
+                                <input
+                                    id="monthlyAppreciationPostConstruction"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={monthlyAppreciationPostConstruction}
+                                    onChange={(e) => setMonthlyAppreciationPostConstruction(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                            {/* Rental Income Percentage */}
+                            <div class="flex flex-col">
+                                <label htmlFor="rentalIncomePercentage" class="text-sm font-medium text-gray-300 mb-1">
+                                    Renda de Aluguel Mensal (%): <span class="font-semibold text-blue-300">{rentalIncomePercentage.toFixed(1)}%</span>
+                                </label>
+                                <input
+                                    id="rentalIncomePercentage"
+                                    type="range"
+                                    min="0.5"
+                                    max="3.0"
+                                    step="0.1"
+                                    value={rentalIncomePercentage}
+                                    onChange={(e) => setRentalIncomePercentage(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                            {/* Initial Costs Percentage */}
+                            <div class="flex flex-col">
+                                <label htmlFor="initialCostsPercentage" class="text-sm font-medium text-gray-300 mb-1">
+                                    Custos Iniciais (%): <span class="font-semibold text-blue-300">{initialCostsPercentage.toFixed(1)}%</span>
+                                </label>
+                                <input
+                                    id="initialCostsPercentage"
+                                    type="range"
+                                    min="10.0"
+                                    max="30.0"
+                                    step="0.5"
+                                    value={initialCostsPercentage}
+                                    onChange={(e) => setInitialCostsPercentage(parseToNumber(e.target.value))}
+                                    class="p-2 sm:p-3 border border-gray-700 rounded-md shadow-sm bg-gray-800 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out w-full"
+                                />
+                            </div>
+                        </div>
 
-                            <InputField label="Valor Reforço Anual (R$)" type="range" value={annualReinforcementValue} onChange={setAnnualReinforcementValue} min="10000" max="30000" step="1000" isCurrency />
-                            <InputField label="Número Total de Reforços Anuais" type="range" value={numAnnualReinforcementsTotal} onChange={setNumAnnualReinforcementsTotal} min="1" max="12" step="1" />
+                        {/* Simulation Results Section */}
+                        <FadeInSection>
+                            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-inner space-y-4 border border-blue-600">
+                                <h2 class="text-xl sm:text-2xl font-semibold text-sky-400 text-center mb-2 sm:mb-4">Resultados da Simulação</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
+                                    <InfoCard
+                                        title="Total Pago Durante a Construção"
+                                        value={formatCurrency(totalPaidDuringConstruction)}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                    <InfoCard
+                                        title="Valor Final do Imóvel"
+                                        value={formatCurrency(finalPropertyValue)}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                    <InfoCard
+                                        title="Investimento Total (Saída de Caixa)"
+                                        value={formatCurrency(totalInvestment)}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                    <InfoCard
+                                        title="Renda Total de Aluguel"
+                                        value={formatCurrency(totalRentalIncome)}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                    <InfoCard
+                                        title="Lucro Líquido"
+                                        value={formatCurrency(netProfit)}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                    <InfoCard
+                                        title="Valorização do Investimento"
+                                        value={`${percentageAppreciation.toFixed(2)}%`}
+                                        titleColor="text-blue-300"
+                                        valueColor="text-blue-200"
+                                        bgColor="bg-gray-700"
+                                        borderColor="border-gray-600"
+                                    />
+                                </div>
+                            </FadeInSection>
 
-                            <InfoDisplayCard
-                                title="Parcelas Mensais Durante a Obra"
-                                value={formatCurrency(calculatedMonthlyInstallmentDuringConstruction)}
-                                titleColor="text-gray-300"
-                                valueColor="text-blue-200"
-                                bgColor="bg-gray-800"
-                                borderColor="border-gray-700"
-                            />
-                            <InfoDisplayCard
-                                title="Total Pago Durante a Obra (50% do Imóvel)"
-                                value={formatCurrency(calculatedTotalPaidDuringConstruction)}
-                                titleColor="text-gray-300"
-                                valueColor="text-blue-200"
-                                bgColor="bg-gray-800"
-                                borderColor="border-gray-700"
-                            />
-                            <InputField label="Meses Totais do Fluxo" type="range" value={totalPaymentFlowMonths} onChange={setTotalPaymentFlowMonths} min="120" max="140" step="1" />
-                            <InfoDisplayCard
-                                title="Meses de Financiamento Pós-Obra"
-                                value={`${calculatedTotalInstallmentMonthsPostConstruction} meses`}
-                                titleColor="text-gray-300"
-                                valueColor="text-blue-200"
-                                bgColor="bg-gray-800"
-                                borderColor="border-gray-700"
-                            />
-                            <InputField label="Valor nas Chaves (R$)" type="range" value={valueAtKeysInput} onChange={setValueAtKeysInput} min="0" max={initialPropertyValue} step="10000" isCurrency />
-                             <InfoDisplayCard
-                                title="Valor da Parcela Mensal Pós-Obra"
-                                value={formatCurrency(calculatedMonthlyInstallmentValuePostConstruction)}
-                                titleColor="text-gray-300"
-                                valueColor="text-blue-200"
-                                bgColor="bg-gray-800"
-                                borderColor="border-gray-700"
-                            />
+                            {/* Comparative Investment Section */}
+                            <FadeInSection delay={200}>
+                                <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-inner space-y-4 border border-amber-600">
+                                    <h2 class="text-xl sm:text-2xl font-semibold text-amber-400 text-center mb-2 sm:mb-4">Comparativo com Outros Investimentos</h2>
+                                    <p class="text-xs sm:text-sm text-gray-300 italic">
+                                        *Valores de retorno de outros investimentos são estimativas baseadas em médias históricas ilustrativas e não garantem resultados futuros.
+                                        O valor inicial para comparação é o **Investimento Total (Saída de Caixa)** do seu imóvel simulado.
+                                    </p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
+                                        <InfoCard
+                                            title="Retorno da Poupança"
+                                            value={`${savingsReturnPct.toFixed(2)}%`}
+                                            titleColor="text-amber-300"
+                                            valueColor="text-red-300"
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Retorno do CDI"
+                                            value={`${cdiReturnPct.toFixed(2)}%`}
+                                            titleColor="text-amber-300"
+                                            valueColor="text-red-300"
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Retorno do IPCA+"
+                                            value={`${ipcaPlusReturnPct.toFixed(2)}%`}
+                                            titleColor="text-amber-300"
+                                            valueColor="text-red-300"
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Retorno da Bolsa de Valores"
+                                            value={`${stockMarketReturnPct.toFixed(2)}%`}
+                                            titleColor="text-amber-300"
+                                            valueColor="text-red-300"
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Imóvel vs Poupança"
+                                            value={`${propVsSavingsPct.toFixed(2)}%`}
+                                            titleColor="text-emerald-300"
+                                            valueColor={propVsSavingsPct >= 0 ? 'text-green-400' : 'text-red-300'}
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Imóvel vs CDI"
+                                            value={`${propVsCdiPct.toFixed(2)}%`}
+                                            titleColor="text-emerald-300"
+                                            valueColor={propVsCdiPct >= 0 ? 'text-green-400' : 'text-red-300'}
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Imóvel vs IPCA+"
+                                            value={`${propVsIpcaPlusPct.toFixed(2)}%`}
+                                            titleColor="text-emerald-300"
+                                            valueColor={propVsIpcaPlusPct >= 0 ? 'text-green-400' : 'text-red-300'}
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                        <InfoCard
+                                            title="Imóvel vs Bolsa"
+                                            value={`${propVsStockMarketPct.toFixed(2)}%`}
+                                            titleColor="text-emerald-300"
+                                            valueColor={propVsStockMarketPct >= 0 ? 'text-green-400' : 'text-red-300'}
+                                            bgColor="bg-gray-700"
+                                            borderColor="border-gray-600"
+                                        />
+                                    </div>
+                                </div>
+                            </FadeInSection>
+
+                            {/* Explanation Section */}
+                            <FadeInSection delay={400}>
+                                <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-inner space-y-4 border border-gray-700 text-gray-200">
+                                    <h2 class="text-xl sm:text-2xl font-semibold text-sky-400 text-center mb-2 sm:mb-4">Entendendo a Valorização</h2>
+                                    <p>
+                                        A valorização do seu investimento imobiliário, conforme simulado, é influenciada por vários fatores cruciais:
+                                    </p>
+                                    <ul class="list-disc list-inside space-y-2 pl-4">
+                                        <li>
+                                            <span class="font-semibold text-sky-400">Valorização Durante a Construção:</span> O imóvel tende a se valorizar de forma mais acelerada na fase de construção. Isso ocorre pois a obra em andamento, especialmente em estágios iniciais, apresenta um risco percebido maior para o investidor, o que se traduz em um preço de entrada mais acessível. À medida que a construção avança e o risco diminui (com a garantia de entrega), o imóvel se valoriza até atingir o valor de mercado de uma unidade pronta.
+                                        </li>
+                                        <li>
+                                            <span class="font-semibold text-sky-400">Apreciação de Mercado Pós-Construção:</span> Mesmo após a entrega, o imóvel continua se valorizando conforme as dinâmicas do mercado imobiliário local e regional (oferta e demanda, infraestrutura, desenvolvimento da área).
+                                        </li>
+                                        <li>
+                                            <span class="font-semibold text-sky-400">Renda de Aluguel:</span> A capacidade do imóvel de gerar renda passiva através do aluguel contribui significativamente para o retorno total do investimento. Essa renda complementa a valorização do capital, aumentando o lucro líquido ao longo do tempo.
+                                        </li>
+                                        <li>
+                                            <span class="font-semibold text-sky-400">Pagamento Estratégico na Construção:</span> A limitação dos pagamentos durante a construção a 50% do valor inicial é uma prática comum para alinhar os desembolsos com o progresso da obra e o risco do investimento. Isso ajuda a otimizar o fluxo de caixa do investidor, enquanto permite que a valorização do imóvel ocorra em um período com menor desembolso inicial.
+                                        </li>
+                                    </ul>
+                                    <p>
+                                        A combinação desses fatores resulta no lucro líquido e no percentual de valorização exibidos, demonstrando o potencial de retorno do investimento imobiliário quando bem planejado.
+                                    </p>
+                                </div>
+                            </FadeInSection>
                         </div>
                     </div>
 
-                    {/* Action Buttons for Proposal Page */}
-                    <div class="flex justify-center gap-4 mt-8">
-                        <button
-                            onClick={handleSendProposalViaWhatsapp}
-                            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-lg text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition duration-150 ease-in-out transform hover:scale-105"
-                        >
-                            <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M12.000 2.000C6.477 2.000 2.000 6.477 2.000 12.000C2.000 17.523 6.477 22.000 12.000 22.000C17.523 22.000 22.000 17.523 22.000 12.000C22.000 6.477 17.523 2.000 12.000 2.000ZM15.485 16.035C15.285 16.205 15.065 16.325 14.825 16.405C14.585 16.485 14.335 16.515 14.075 16.515C13.815 16.515 13.565 16.485 13.325 16.405C13.085 16.325 12.865 16.205 12.665 16.035C12.465 15.865 12.285 15.685 12.125 15.495C11.965 15.305 11.835 15.115 11.735 14.915C11.635 14.715 11.565 14.505 11.525 14.285C11.485 14.065 11.455 13.835 11.455 13.605C11.455 13.375 11.485 13.145 11.525 12.925C11.565 12.705 11.635 12.495 11.735 12.295C11.835 12.095 11.965 11.905 12.125 11.715C12.285 11.525 12.465 11.345 12.665 11.175C12.865 11.005 13.085 10.885 13.325 10.805C13.565 10.725 13.815 10.695 14.075 10.695C14.335 10.695 14.585 10.725 14.825 10.805C15.065 10.885 15.285 11.005 15.485 11.175C15.685 11.345 15.865 11.525 16.035 11.715C16.205 11.905 16.325 12.095 16.405 12.295C16.485 12.495 16.515 12.705 16.515 12.925C16.515 13.145 16.485 13.375 16.405 13.605C16.325 13.835 16.205 14.065 16.035 14.285C15.865 14.505 15.685 14.715 15.485 14.915C15.285 15.115 15.065 15.305 14.825 15.495C14.585 15.685 14.335 15.865 14.075 16.035Z" />
+                    {/* Floating Action Buttons Container */}
+                    <div class="fixed right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col items-end gap-3">
+                        <FloatingActionButton
+                            href="proposal.html"
+                            text="Gerar Proposta"
+                            iconPath="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM12 17C12 17.55 11.55 18 11 18H9C8.45 18 8 17.55 8 17V15C8 14.45 8.45 14 9 14H11C11.55 14 12 14.45 12 15V17ZM16 13V15C16 15.55 15.55 16 15 16H13V14H15V13H16ZM12 13V15H14V13H12ZM16 17V18H13V17H16Z"
+                            bgColor="bg-purple-600"
+                            hoverBgColor="bg-purple-700"
+                            iconColor="text-white"
+                            ariaLabel="Gerar Proposta"
+                        />
+                        <FloatingActionButton
+                            onClick={handleSendSimulationViaWhatsapp}
+                            text="Enviar Simulação"
+                            iconPath="M12.000 2.000C6.477 2.000 2.000 6.477 2.000 12.000C2.000 17.523 6.477 22.000 12.000 22.000C17.523 22.000 22.000 17.523 22.000 12.000C22.000 6.477 17.523 2.000 12.000 2.000ZM15.485 16.035C15.285 16.205 15.065 16.325 14.825 16.405C14.585 16.485 14.335 16.515 14.075 16.515C13.815 16.515 13.565 16.485 13.325 16.405C13.085 16.325 12.865 16.205 12.665 16.035C12.465 15.865 12.285 15.685 12.125 15.495C11.965 15.305 11.835 15.115 11.735 14.915C11.635 14.715 11.565 14.505 11.525 14.285C11.485 14.065 11.455 13.835 11.455 13.605C11.455 13.375 11.485 13.145 11.525 12.925C11.565 12.705 11.635 12.495 11.735 12.295C11.835 12.095 11.965 11.905 12.125 11.715C12.285 11.525 12.465 11.345 12.665 11.175C12.865 11.005 13.085 10.885 13.325 10.805C13.565 10.725 13.815 10.695 14.075 10.695C14.335 10.695 14.585 10.725 14.825 10.805C15.065 10.885 15.285 11.005 15.485 11.175C15.685 11.345 15.865 11.525 16.035 11.715C16.205 11.905 16.325 12.095 16.405 12.295C16.485 12.495 16.515 12.705 16.515 12.925C16.515 13.145 16.485 13.375 16.405 13.605C16.325 13.835 16.205 14.065 16.035 14.285C15.865 14.505 15.685 14.715 15.485 14.915C15.285 15.115 15.065 15.305 14.825 15.495C14.585 15.685 14.335 15.865 14.075 16.035Z" />
                             </svg>
-                            Enviar Proposta via WhatsApp
+                            Enviar Simulação
+                        </button>
+                        <FloatingActionButton
+                            href="https://www.instagram.com/kevecosta/"
+                            text="Instagram"
+                            iconPath="M12 0C8.74 0 8.333.014 7.053.072 5.775.132 4.965.297 4.233.553 3.497.817 2.863 1.177 2.228 1.813 1.593 2.448 1.233 3.084.975 3.816.717 4.546.551 5.355.49 6.633.43 7.912.43 8.309.43 12v.001c.005 3.25.02 3.637.076 4.917.06 1.278.225 2.088.489 2.82c.266.733.626 1.367 1.262 2.002.636.636 1.272.996 2.005 1.262.735.266 1.545.432 2.824.491 1.278.058 1.635.073 4.915.076 3.279.002 3.636-.013 4.914-.071 1.279-.06 2.089-.226 2.821-.491.733-.265 1.367-.626 2.002-1.262.635-.636.996-1.272 1.262-2.005.265-.735.431-1.545.49-2.824.058-1.278.073-1.635.076-4.915v-.001c.002-3.26-.013-3.637-.071-4.916-.06-1.28-.225-2.089-.49-2.82-.265-.733-.626-1.368-1.262-2.003-.636-.636-1.272-.996-2.005-1.26-.735-.266-1.545-.432-2.824-.491-1.278-.058-1.635-.073-4.915-.076L12 0Zm0 2.16c3.21 0 3.58.012 4.85.069 1.27.059 1.93.224 2.3.364.44.172.76.386 1.05.674.29.289.503.608.675 1.049.14.364.305 1.024.364 2.3.058 1.27.069 1.64.069 4.85s-.011 3.58-.069 4.85c-.059 1.27-.224 1.93-.364 2.3-.172.44-.386.76-.674 1.05-.289.29-.608.503-1.049.675-.364.14-1.024.305-2.3.364-1.27.058-1.64.069-4.85.069s-3.58-.011-4.85-.069c-1.27-.059-1.93-.224-2.3-.364-.44-.172-.76-.386-1.05-.674-.29-.289-.503-.608-.675-1.049-.14-.364-.305-1.024-.364-2.3-.058-1.27-.069-1.64-.069-4.85s.011-3.58.069-4.85c.059-1.27.224-1.93.364-2.3.172-.44.386-.76.674-1.05.289-.29.608.503 1.049-.675.364-.14 1.024-.305 2.3-.364C8.42 2.16 8.79 2.16 12 2.16Zm0 3.635a6.205 6.205 0 1 0 0 12.41a6.205 6.205 0 0 0 0-12.41Zm0 10.16a3.955 3.955 0 1 1 0-7.91a3.955 3.955 0 0 1 0 7.91ZM18.44 5.76a1.455 1.455 0 1 0-2.91 0 1.455 1.455 0 0 0 2.91 0Z" />
+                            </svg>
+                            Instagram
                         </button>
                     </div>
                 </div>
             );
         };
 
-        ReactDOM.render(<ProposalPage onBack={() => window.location.href = 'index.html'} />, document.getElementById('root'));
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
